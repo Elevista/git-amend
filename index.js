@@ -22,8 +22,8 @@ async function asyncExec () {
 
   console.log(m.format('YYYY-MM-DD A hh:mm'))
   const date = m.format(format)
-  await exec(`set GIT_COMMITTER_DATE="${date}"`)
-  const { stdout } = await exec(`git commit --amend --date="${date}" --no-edit`)
+  console.log(`git commit --amend --date="${date}" --no-edit`, { env: { 'GIT_COMMITTER_DATE': date } })
+  const { stdout } = await exec(`git commit --amend --date="${date}" --no-edit`, { env: { 'GIT_COMMITTER_DATE': date } })
   console.log(stdout)
 }
 
