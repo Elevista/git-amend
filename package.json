@@ -13,6 +13,8 @@
   },
   "bin": "./index.js",
   "dependencies": {
+    "ansi-colors": "^3.2.3",
+    "enquirer": "^2.1.1",
     "moment": "^2.23.0"
   }
 }
