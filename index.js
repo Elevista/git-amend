@@ -6,24 +6,28 @@ const { MultiSelect, Select, Snippet } = require('enquirer')
 const c = require('ansi-colors')
 const exec = util.promisify(require('child_process').exec)
 
-// %H: commit hash
-// %h: abbreviated commit hash
-// %an: author name
-// %ae: author email
-// %cd: committer date (format respects --date= option)
-// %s: subject
-// %n: newline
+  // %H: commit hash
+  // %h: abbreviated commit hash
+  // %an: author name
+  // %ae: author email
+  // %ad: author date
+  // %cn: committer name
+  // %ce: committer email
+  // %cd: committer date
+  // %s: subject
+  // %n: newline
+
 ;(async function () {
   if ((await exec('git status -s -uno')).stdout.length) {
     console.log(c.red.bold(`You have uncommitted changes`))
     return
   }
 
-  let { stdout } = await exec('git log --format="%H%n%h%n%an%n%ae%n%cd%n%s%n%n" -10')
+  let { stdout } = await exec('git log --format="%H%n%h%n%an%n%ae%n%ad%n%cn%n%ce%n%cd%n%s%n" -10')
   const ref = {}
-  let commits = stdout.split('\n\n').map(x => {
-    const [hash, hs, name, email, date, subject] = x.trim().split('\n')
-    return { hash, hs, name, email, date: moment(date, format), subject }
+  let commits = stdout.split('\n\n').map((x, idx) => {
+    const [hash, hs, name, email, date, cname, cemail, cdate, subject] = x.trim().split('\n')
+    return { hash, hs, subject, name, email, date: moment(date, format), cname, cemail, cdate: moment(cdate, format), idx }
   }).filter(x => x.hash)
   commits.forEach(x => { ref[x.hash] = x })
 
@@ -81,7 +85,7 @@ const exec = util.promisify(require('child_process').exec)
 })`
   }).run()
 
-  for (let { hash, date } of selectedCommits.map(x => ref[x])) {
+  for (let { hash, name, email, date, cname, cemail } of selectedCommits.map(x => ref[x])) {
     const from = date.format('YYYY-MM-DD HH:mm')
     let m = method === 'set' ? moment(timeUnit) : date[method](timeUnit)
     console.log(`${c.bold.cyan(from)} -> ${c.bold.green(m.format('YYYY-MM-DD HH:mm'))} `)
@@ -89,7 +93,11 @@ const exec = util.promisify(require('child_process').exec)
       `git filter-branch -f --env-filter \\
         'if [ $GIT_COMMIT = ${hash} ]
          then
+          export GIT_AUTHOR_NAME="${name}"
+          export GIT_AUTHOR_EMAIL="${email}"
           export GIT_AUTHOR_DATE="${m.format(format)}"
+          export GIT_COMMITTER_NAME="${cname}"
+          export GIT_COMMITTER_EMAIL="${cemail}"
           export GIT_COMMITTER_DATE="${m.format(format)}"
         fi'`
     )
