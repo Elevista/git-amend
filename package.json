@@ -1,7 +1,7 @@
 {
-  "name": "git-commit-date",
+  "name": "git-amend",
   "version": "1.0.0",
-  "description": "Amend git commit date",
+  "description": "Amend git commit",
   "main": "index.js",
   "author": "Elevista",
   "email": "elevista@sunnyholic.com",
@@ -10,7 +10,7 @@
     "standard": "^12.0.1"
   },
   "bin": {
-    "git-commit-date": "./index.js"
+    "git-amend": "./index.js"
   },
   "dependencies": {
     "ansi-colors": "^3.2.3",
