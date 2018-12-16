@@ -1,32 +1,30 @@
 #!/usr/bin/env node
 const moment = require('moment')
+const { MultiSelect, Select, Snippet } = require('enquirer')
+const { exec, makeEcho } = require('./util')
+const c = require('ansi-colors')
 const format = 'ddd MMM DD HH:mm YYYY Z'
 const formatDispay = 'YYYY-MM-DD HH:mm'
-const { MultiSelect, Select, Snippet } = require('enquirer')
-const c = require('ansi-colors')
-const { execSync } = require('child_process')
 
-// %H: commit hash
-// %h: abbreviated commit hash
-// %an: author name
-// %ae: author email
-// %ad: author date
-// %cn: committer name
-// %ce: committer email
-// %cd: committer date
-// %s: subject
-// %n: newline
-
-const escape = process.platform === 'win32' ? [/([%)])/g, '^$1'] : [/(["])/g, '\\$1']
+  // %H: commit hash
+  // %h: abbreviated commit hash
+  // %an: author name
+  // %ae: author email
+  // %ad: author date
+  // %cn: committer name
+  // %ce: committer email
+  // %cd: committer date
+  // %s: subject
+  // %n: newline
 
 ;(async function () {
-  if (execSync('git status -s -uno').toString().length) {
+  if (exec`git status -s -uno`.length) {
     console.log(c.red.bold(`You have uncommitted changes`))
     return
   }
-  try { execSync(`git rebase --abort -q`) } catch (e) {}
+  try { exec`git rebase --abort -q` } catch (e) {}
 
-  let stdout = execSync('git log --format="%H%n%h%n%an%n%ae%n%ad%n%cn%n%ce%n%cd %n%s%n" -10').toString().replace(...escape)
+  let stdout = exec`git log --format="${'%H%n%h%n%an%n%ae%n%ad%n%cn%n%ce%n%cd%n%s%n'}" -10`
   const ref = {}
   let commits = stdout.split('\n\n').map((x, idx) => {
     const [hash, hs, name, email, date, cname, cemail, cdate, subject] = x.trim().split('\n')
@@ -69,11 +67,9 @@ const escape = process.platform === 'win32' ? [/([%)])/g, '^$1'] : [/(["])/g, '\
 
   selectedCommits.forEach(x => { x.rebase = 'edit' })
   while (commits[0] && (commits[0].rebase === 'pick')) commits.shift()
-  const rebaseString = commits.map(({ hs, subject, rebase }) => `${rebase} ${hs} ${subject}`).join('\n').replace(...escape)
-  process.env['GIT_SEQUENCE_EDITOR'] = process.platform.win32
-    ? `(${rebaseString.split('\n').map(x => 'echo ' + x).join('\n')})>`
-    : `echo "${rebaseString}">`
-  try { execSync(`git rebase -i ${commits[0].hash}`) } catch (e) {}
+  const rebaseString = commits.map(({ hs, subject, rebase }) => `${rebase} ${hs} ${subject}`).join('\n')
+  process.env['GIT_SEQUENCE_EDITOR'] = makeEcho(rebaseString) + '>'
+  try { exec`git rebase -i ${commits[0].hash}` } catch (e) {}
 
   const choices = ['Set individually', 'Adjust all']
   const method = await new Select({
@@ -82,8 +78,9 @@ const escape = process.platform === 'win32' ? [/([%)])/g, '^$1'] : [/(["])/g, '\
     choices
   }).run()
 
-  const fn = method === 'Set individually' ? 'moment' : 'moment.duration'
-  const days = method === 'Set individually' ? 'date' : 'days'
+  const individual = method === 'Set individually'
+  const fn = individual ? 'moment' : 'moment.duration'
+  const days = individual ? 'date' : 'days'
   const template = `${fn}({
     minutes: ${c.yellow(`\${minutes}`)},
     hours: ${c.yellow(`\${hours}`)},
@@ -102,7 +99,8 @@ const escape = process.platform === 'win32' ? [/([%)])/g, '^$1'] : [/(["])/g, '\
       years: 0
     }
     Object.keys(values).forEach(key => { values[key] += '' })
-    const fields = Object.keys(values).map(name => { return { name, validate (v) { return !isNaN(v) } } })
+    const validate = v => !isNaN(v)
+    const fields = Object.keys(values).map(name => ({ name, validate }))
 
     const { values: ret } = await new Snippet({
       name: 'Time unit',
@@ -118,12 +116,12 @@ const escape = process.platform === 'win32' ? [/([%)])/g, '^$1'] : [/(["])/g, '\
   const q = []
   for (let i = 0; i < selectedCommits.length; i++) {
     const { subject, hs, name, email, date, cname, cemail } = selectedCommits[i]
-    const sequence = `(${i + 1}/${selectedCommits.length})`
+    const sequence = c.cyan(`(${i + 1}/${selectedCommits.length})`)
     const from = date.format(formatDispay)
-    if (method === 'Set individually') {
+    if (individual) {
       timeUnit = await askTime(`${c.yellow(`(${hs})`)}${c.bold(from)} ${c.green.bold(name)} ${subject}${sequence}`, date)
     } else if (!timeUnit) timeUnit = await askTime('Duration to add')
-    const m = method === 'Set individually' ? moment(timeUnit) : date.add(timeUnit)
+    const m = individual ? moment(timeUnit) : date.add(timeUnit)
     const newDate = m.format(format)
     const to = m.format(formatDispay)
     q.push(function () {
@@ -136,8 +134,8 @@ const escape = process.platform === 'win32' ? [/([%)])/g, '^$1'] : [/(["])/g, '\
         'GIT_COMMITTER_EMAIL': cemail,
         'GIT_COMMITTER_DATE': newDate
       })
-      execSync(`git commit --amend --date="${newDate}" --no-edit`)
-      execSync(`git rebase --continue`)
+      exec`git commit --amend --date="${newDate}" --no-edit`
+      exec`git rebase --continue`
     })
   }
   q.forEach(x => x())
