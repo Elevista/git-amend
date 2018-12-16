@@ -5,16 +5,18 @@ const { MultiSelect, Select, Snippet } = require('enquirer')
 const c = require('ansi-colors')
 const { execSync } = require('child_process')
 
-  // %H: commit hash
-  // %h: abbreviated commit hash
-  // %an: author name
-  // %ae: author email
-  // %ad: author date
-  // %cn: committer name
-  // %ce: committer email
-  // %cd: committer date
-  // %s: subject
-  // %n: newline
+// %H: commit hash
+// %h: abbreviated commit hash
+// %an: author name
+// %ae: author email
+// %ad: author date
+// %cn: committer name
+// %ce: committer email
+// %cd: committer date
+// %s: subject
+// %n: newline
+
+const escape = process.platform === 'win32' ? [/([%)])/g, '^$1'] : [/(["])/g, '\\$1']
 
 ;(async function () {
   if (execSync('git status -s -uno').toString().length) {
@@ -23,7 +25,7 @@ const { execSync } = require('child_process')
   }
   try { execSync(`git rebase --abort -q`) } catch (e) {}
 
-  let stdout = execSync('git log --format="%H%n%h%n%an%n%ae%n%ad%n%cn%n%ce%n%cd%n%s%n" -10').toString()
+  let stdout = execSync('git log --format="%H%n%h%n%an%n%ae%n%ad%n%cn%n%ce%n%cd %n%s%n" -10').toString().replace(...escape)
   const ref = {}
   let commits = stdout.split('\n\n').map((x, idx) => {
     const [hash, hs, name, email, date, cname, cemail, cdate, subject] = x.trim().split('\n')
@@ -53,8 +55,10 @@ const { execSync } = require('child_process')
 
   selectedCommits.forEach(x => { x.rebase = 'edit' })
   while (commits[0] && (commits[0].rebase === 'pick')) commits.shift()
-  const rebaseString = commits.map(({ hs, subject, rebase }) => `${rebase} ${hs} ${subject}`).join('\n')
-  process.env['GIT_SEQUENCE_EDITOR'] = `echo "${rebaseString}" >`
+  const rebaseString = commits.map(({ hs, subject, rebase }) => `${rebase} ${hs} ${subject}`).join('\n').replace(...escape)
+  process.env['GIT_SEQUENCE_EDITOR'] = process.platform.win32
+    ? `(${rebaseString.split('\n').map(x => 'echo ' + x).join('\n')})>`
+    : `echo "${rebaseString}">`
   try { execSync(`git rebase -i ${commits[0].hash}`) } catch (e) {}
 
   const choices = ['subtract', 'add']
