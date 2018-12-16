@@ -116,10 +116,12 @@ const escape = process.platform === 'win32' ? [/([%)])/g, '^$1'] : [/(["])/g, '\
   }
 
   const q = []
-  for (let { subject, hs, name, email, date, cname, cemail } of selectedCommits) {
+  for (let i = 0; i < selectedCommits.length; i++) {
+    const { subject, hs, name, email, date, cname, cemail } = selectedCommits[i]
+    const sequence = `(${i + 1}/${selectedCommits.length})`
     const from = date.format(formatDispay)
     if (method === 'Set individually') {
-      timeUnit = await askTime(`${c.yellow(`(${hs})`)}${c.bold(from)} ${c.green.bold(name)} ${subject}`, date)
+      timeUnit = await askTime(`${c.yellow(`(${hs})`)}${c.bold(from)} ${c.green.bold(name)} ${subject}${sequence}`, date)
     } else if (!timeUnit) timeUnit = await askTime('Duration to add')
     const m = method === 'Set individually' ? moment(timeUnit) : date.add(timeUnit)
     const newDate = m.format(format)
