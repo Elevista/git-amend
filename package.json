@@ -1,20 +1,25 @@
 {
   "name": "git-commit-date",
   "version": "1.0.0",
-  "description": "",
+  "description": "Amend git commit date",
   "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "author": "",
+  "author": "Elevista",
+  "email": "elevista@sunnyholic.com",
   "license": "ISC",
   "devDependencies": {
     "standard": "^12.0.1"
   },
-  "bin": "./index.js",
+  "bin": {
+    "git-commit-date": "./index.js"
+  },
   "dependencies": {
     "ansi-colors": "^3.2.3",
     "enquirer": "^2.1.1",
     "moment": "^2.23.0"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://elevista@bitbucket.org/elevista/git-commit-date.git"
+  },
+  "homepage": "https://bitbucket.org/elevista/git-commit-date#readme"
 }
