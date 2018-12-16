@@ -37,7 +37,7 @@ const itemInfo = function ({ hs, date, name, subject, sequence }) {
   }
   try { exec`git rebase --abort -q` } catch (e) {}
 
-  const stdout = exec`git log --format="${'%H%n%h%n%an%n%ae%n%ad%n%cn%n%ce%n%cd%n%s%n'}" -10`
+  const stdout = exec`git log --format=${'%H%n%h%n%an%n%ae%n%ad%n%cn%n%ce%n%cd%n%s%n'} -10`
   const ref = {}
   const commits = stdout.split('\n\n').map((x, idx) => {
     const [hash, hs, name, email, date, cname, cemail, cdate, subject] = x.trim().split('\n')
