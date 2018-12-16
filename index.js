@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 const moment = require('moment')
 const format = 'ddd MMM DD HH:mm YYYY Z'
+const formatDispay = 'YYYY-MM-DD HH:mm'
 const { MultiSelect, Select, Snippet } = require('enquirer')
 const c = require('ansi-colors')
 const { execSync } = require('child_process')
@@ -29,7 +30,19 @@ const escape = process.platform === 'win32' ? [/([%)])/g, '^$1'] : [/(["])/g, '\
   const ref = {}
   let commits = stdout.split('\n\n').map((x, idx) => {
     const [hash, hs, name, email, date, cname, cemail, cdate, subject] = x.trim().split('\n')
-    return { hash, hs, subject, name, email, date: moment(date, format), cname, cemail, cdate: moment(cdate, format), idx, rebase: 'pick' }
+    return {
+      hash,
+      hs,
+      subject,
+      name,
+      email,
+      date: moment(date, format),
+      cname,
+      cemail,
+      cdate: moment(cdate, format),
+      idx,
+      rebase: 'pick'
+    }
   }).filter(x => x.hash)
   commits.forEach(x => { ref[x.hash] = x })
 
@@ -44,9 +57,10 @@ const escape = process.platform === 'win32' ? [/([%)])/g, '^$1'] : [/(["])/g, '\
     },
     choices: commits.map(({ hash, hs, name, date, subject }) => {
       return {
-        name: `${c.yellow(`(${hs})`)}${c.bold(date.format('YYYY-MM-DD HH:mm'))}`,
+        name: `${c.yellow(`(${hs})`)}${c.bold(date.format(formatDispay))}`,
         hint: `${c.green.bold(name)} ${subject}`,
-        value: hash }
+        value: hash
+      }
     })
   }).run()).map(x => ref[x])
 
@@ -61,56 +75,69 @@ const escape = process.platform === 'win32' ? [/([%)])/g, '^$1'] : [/(["])/g, '\
     : `echo "${rebaseString}">`
   try { execSync(`git rebase -i ${commits[0].hash}`) } catch (e) {}
 
-  const choices = ['subtract', 'add']
-  if (selectedCommits.length === 1) choices.push('set')
+  const choices = ['Set individually', 'Adjust all']
   const method = await new Select({
     name: 'method',
     message: 'Select moment manipulate method',
     choices
   }).run()
 
-  const fn = method === 'set' ? 'moment' : 'moment.duration'
-  const message = method === 'set' ? 'Time unit' : `Duration to ${method}`
-  const values = method === 'set' ? moment().toObject() : {
-    minutes: 0,
-    hours: 0,
-    days: 0,
-    months: 0,
-    years: 0
-  }
-  const days = method === 'set' ? 'date' : 'days'
-  Object.keys(values).forEach(key => { values[key] += '' })
-
-  let fields = Object.keys(values).map(name => { return { name, validate (v) { return !isNaN(v) } } })
-  let { values: timeUnit } = await new Snippet({
-    name: 'Time unit',
-    message,
-    fields,
-    format () { return '' },
-    values,
-    template: `${fn}({
+  const fn = method === 'Set individually' ? 'moment' : 'moment.duration'
+  const days = method === 'Set individually' ? 'date' : 'days'
+  const template = `${fn}({
     minutes: ${c.yellow(`\${minutes}`)},
     hours: ${c.yellow(`\${hours}`)},
     ${days}: ${c.yellow(`\${${days}}`)},
     months: ${c.yellow(`\${months}`)},
     years: ${c.yellow(`\${years}`)}
   })`
-  }).run()
 
-  for (let { subject, hs, name, email, date, cname, cemail } of selectedCommits) {
-    const from = date.format('YYYY-MM-DD HH:mm')
-    let m = method === 'set' ? moment(timeUnit) : date[method](timeUnit)
-    console.log(`${c.yellow(`(${hs})`)}${c.bold(subject)} ${c.bold.cyan(from)} -> ${c.bold.green(m.format('YYYY-MM-DD HH:mm'))} `)
-    Object.assign(process.env, {
-      'GIT_AUTHOR_NAME': name,
-      'GIT_AUTHOR_EMAIL': email,
-      'GIT_AUTHOR_DATE': m.format(format),
-      'GIT_COMMITTER_NAME': cname,
-      'GIT_COMMITTER_EMAIL': cemail,
-      'GIT_COMMITTER_DATE': m.format(format)
-    })
-    execSync(`git commit --amend --date="${date}" --no-edit`)
-    execSync(`git rebase --continue`)
+  let timeUnit
+  async function askTime (message, date) {
+    const values = date ? date.toObject() : {
+      minutes: 0,
+      hours: 0,
+      days: 0,
+      months: 0,
+      years: 0
+    }
+    Object.keys(values).forEach(key => { values[key] += '' })
+    const fields = Object.keys(values).map(name => { return { name, validate (v) { return !isNaN(v) } } })
+
+    const { values: ret } = await new Snippet({
+      name: 'Time unit',
+      message,
+      fields,
+      format () { return '' },
+      values,
+      template
+    }).run()
+    return ret
   }
+
+  const q = []
+  for (let { subject, hs, name, email, date, cname, cemail } of selectedCommits) {
+    const from = date.format(formatDispay)
+    if (method === 'Set individually') {
+      timeUnit = await askTime(`${c.yellow(`(${hs})`)}${c.bold(from)} ${c.green.bold(name)} ${subject}`, date)
+    } else if (!timeUnit) timeUnit = await askTime('Duration to add')
+    const m = method === 'Set individually' ? moment(timeUnit) : date.add(timeUnit)
+    const newDate = m.format(format)
+    const to = m.format(formatDispay)
+    q.push(function () {
+      console.log(`${c.yellow(`(${hs})`)}${c.bold(subject)} ${c.bold.cyan(from)} -> ${c.bold.green(to)} `)
+      Object.assign(process.env, {
+        'GIT_AUTHOR_NAME': name,
+        'GIT_AUTHOR_EMAIL': email,
+        'GIT_AUTHOR_DATE': newDate,
+        'GIT_COMMITTER_NAME': cname,
+        'GIT_COMMITTER_EMAIL': cemail,
+        'GIT_COMMITTER_DATE': newDate
+      })
+      execSync(`git commit --amend --date="${newDate}" --no-edit`)
+      execSync(`git rebase --continue`)
+    })
+  }
+  q.forEach(x => x())
   console.log(c.yellow.bold('Done!'))
 })()
