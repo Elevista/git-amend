@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 const moment = require('moment')
-const util = require('util')
 const format = 'ddd MMM DD HH:mm YYYY Z'
 const { MultiSelect, Select, Snippet } = require('enquirer')
 const c = require('ansi-colors')
-const exec = util.promisify(require('child_process').exec)
+const { execSync } = require('child_process')
 
   // %H: commit hash
   // %h: abbreviated commit hash
@@ -18,20 +17,21 @@ const exec = util.promisify(require('child_process').exec)
   // %n: newline
 
 ;(async function () {
-  if ((await exec('git status -s -uno')).stdout.length) {
+  if (execSync('git status -s -uno').toString().length) {
     console.log(c.red.bold(`You have uncommitted changes`))
     return
   }
+  try { execSync(`git rebase --abort -q`) } catch (e) {}
 
-  let { stdout } = await exec('git log --format="%H%n%h%n%an%n%ae%n%ad%n%cn%n%ce%n%cd%n%s%n" -10')
+  let stdout = execSync('git log --format="%H%n%h%n%an%n%ae%n%ad%n%cn%n%ce%n%cd%n%s%n" -10').toString()
   const ref = {}
   let commits = stdout.split('\n\n').map((x, idx) => {
     const [hash, hs, name, email, date, cname, cemail, cdate, subject] = x.trim().split('\n')
-    return { hash, hs, subject, name, email, date: moment(date, format), cname, cemail, cdate: moment(cdate, format), idx }
+    return { hash, hs, subject, name, email, date: moment(date, format), cname, cemail, cdate: moment(cdate, format), idx, rebase: 'pick' }
   }).filter(x => x.hash)
   commits.forEach(x => { ref[x.hash] = x })
 
-  const selectedCommits = await new MultiSelect({
+  const selectedCommits = (await new MultiSelect({
     name: 'value',
     message: 'Select commits to change',
     footer: 'Please select at least one',
@@ -46,10 +46,18 @@ const exec = util.promisify(require('child_process').exec)
         hint: `${c.green.bold(name)} ${subject}`,
         value: hash }
     })
-  }).run()
-  // if (!selectedCommits.length) return
+  }).run()).map(x => ref[x])
 
-  const choices = [ 'subtract', 'add']
+  commits.reverse()
+  selectedCommits.reverse()
+
+  selectedCommits.forEach(x => { x.rebase = 'edit' })
+  while (commits[0] && (commits[0].rebase === 'pick')) commits.shift()
+  const rebaseString = commits.map(({ hs, subject, rebase }) => `${rebase} ${hs} ${subject}`).join('\n')
+  process.env['GIT_SEQUENCE_EDITOR'] = `echo "${rebaseString}" >`
+  try { execSync(`git rebase -i ${commits[0].hash}`) } catch (e) {}
+
+  const choices = ['subtract', 'add']
   if (selectedCommits.length === 1) choices.push('set')
   const method = await new Select({
     name: 'method',
@@ -77,31 +85,28 @@ const exec = util.promisify(require('child_process').exec)
     format () { return '' },
     values,
     template: `${fn}({
-  minutes: ${c.yellow(`\${minutes}`)},
-  hours: ${c.yellow(`\${hours}`)},
-  ${days}: ${c.yellow(`\${${days}}`)},
-  months: ${c.yellow(`\${months}`)},
-  years: ${c.yellow(`\${years}`)}
-})`
+    minutes: ${c.yellow(`\${minutes}`)},
+    hours: ${c.yellow(`\${hours}`)},
+    ${days}: ${c.yellow(`\${${days}}`)},
+    months: ${c.yellow(`\${months}`)},
+    years: ${c.yellow(`\${years}`)}
+  })`
   }).run()
 
-  for (let { hash, name, email, date, cname, cemail } of selectedCommits.map(x => ref[x])) {
+  for (let { subject, hs, name, email, date, cname, cemail } of selectedCommits) {
     const from = date.format('YYYY-MM-DD HH:mm')
     let m = method === 'set' ? moment(timeUnit) : date[method](timeUnit)
-    console.log(`${c.bold.cyan(from)} -> ${c.bold.green(m.format('YYYY-MM-DD HH:mm'))} `)
-    const { stdout } = await exec(
-      `git filter-branch -f --env-filter \\
-        'if [ $GIT_COMMIT = ${hash} ]
-         then
-          export GIT_AUTHOR_NAME="${name}"
-          export GIT_AUTHOR_EMAIL="${email}"
-          export GIT_AUTHOR_DATE="${m.format(format)}"
-          export GIT_COMMITTER_NAME="${cname}"
-          export GIT_COMMITTER_EMAIL="${cemail}"
-          export GIT_COMMITTER_DATE="${m.format(format)}"
-        fi'`
-    )
-    console.log(stdout)
+    console.log(`${c.yellow(`(${hs})`)}${c.bold(subject)} ${c.bold.cyan(from)} -> ${c.bold.green(m.format('YYYY-MM-DD HH:mm'))} `)
+    Object.assign(process.env, {
+      'GIT_AUTHOR_NAME': name,
+      'GIT_AUTHOR_EMAIL': email,
+      'GIT_AUTHOR_DATE': m.format(format),
+      'GIT_COMMITTER_NAME': cname,
+      'GIT_COMMITTER_EMAIL': cemail,
+      'GIT_COMMITTER_DATE': m.format(format)
+    })
+    execSync(`git commit --amend --date="${date}" --no-edit`)
+    execSync(`git rebase --continue`)
   }
   console.log(c.yellow.bold('Done!'))
 })()
