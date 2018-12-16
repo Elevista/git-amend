@@ -27,7 +27,7 @@ const setEnv = function ({ name, email, date }) {
   })
 }
 const itemInfo = function ({ hs, date, name, subject, sequence }) {
-  return `${c.yellow`(${hs})`}${c.bold(date.format(formatDispay))} ${c.green.bold(name)} ${subject}${c.cyan`${sequence}`}`
+  return `${c.yellow`(${hs})`} ${c.bold(date.format(formatDispay))} ${c.green.bold(name)} ${subject}${c.cyan(sequence)}`
 }
 
 ;(async function () {
@@ -57,18 +57,6 @@ const itemInfo = function ({ hs, date, name, subject, sequence }) {
   }).filter(x => x.hash)
   commits.forEach(x => { ref[x.hash] = x })
 
-  const mode = {}
-  const modeName = await new Select({
-    name: 'mode',
-    message: 'Select mode',
-    choices: [
-      { name: 'info', message: 'Edit info', hint: `- author,email,message` },
-      { name: 'set', message: 'Set date', hint: `- change date individually` },
-      { name: 'adjust', message: 'Adjust date', hint: `- add duration to all selected` }
-    ]
-  }).run()
-  mode[modeName] = true
-
   const selectedCommits = (await new MultiSelect({
     name: 'value',
     message: 'Select commits to change',
@@ -79,7 +67,7 @@ const itemInfo = function ({ hs, date, name, subject, sequence }) {
       return Object.values(this.map(names))
     },
     choices: commits.map(({ hash, hs, name, date, subject }) => ({
-      name: `${c.yellow`(${hs})`}${c.bold(date.format(formatDispay))}`,
+      name: `${c.yellow`(${hs})`} ${c.bold(date.format(formatDispay))}`,
       hint: `${c.green.bold(name)} ${subject}`,
       value: hash
     }))
@@ -91,6 +79,18 @@ const itemInfo = function ({ hs, date, name, subject, sequence }) {
   while (commits[0] && (commits[0].rebase === 'pick')) commits.shift()
   const rebaseString = commits.map(({ hs, subject, rebase }) => `${rebase} ${hs} ${subject}`).join('\n')
   process.env['GIT_SEQUENCE_EDITOR'] = makeEcho(rebaseString) + '>'
+
+  const mode = {}
+  const modeName = await new Select({
+    name: 'mode',
+    message: 'Select mode',
+    choices: [
+      { name: 'info', message: 'Edit info', hint: `- author,email,message` },
+      { name: 'set', message: 'Set date', hint: `- change date individually` },
+      { name: 'adjust', message: 'Adjust date', hint: `- add duration to all selected` }
+    ]
+  }).run()
+  mode[modeName] = true
 
   async function editInfo ({ subject, hs, name, email, date, cname, cemail, cdate }, sequence) {
     const message = itemInfo({ hs, date, name, subject, sequence })
@@ -106,23 +106,17 @@ const itemInfo = function ({ hs, date, name, subject, sequence }) {
     const diff = { name: name !== to.name, email: email !== to.email, subject: subject !== to.subject }
     to.date = date
     q.push(() => {
-      c.println(message)
+      c.println`running.. ${c.cyan(sequence)}`
       setEnv(to)
-      if (diff.name || diff.email) {
-        c.println`${name} <${email}> -> ${to.name} <${to.email}>`
-        exec`git commit --amend --no-edit --author="${to.name} <${to.email}>"`
-      }
-      if (diff.subject) {
-        c.println`${subject} -> ${to.subject}`
-        exec`git commit --amend --no-edit -m "${to.subject}"`
-      }
+      if (diff.name || diff.email) exec`git commit --amend --no-edit --author="${to.name} <${to.email}>"`
+      if (diff.subject) exec`git commit --amend --no-edit -m "${to.subject}"`
       exec`git rebase --continue`
     })
   }
 
   const q = []
   async function askTime (message, date) {
-    const fn = mode.set ? 'moment' : 'moment.duration'
+    const fn = c.bold`moment` + (mode.set ? '' : `.${c.yellow`duration`}`)
     const days = mode.set ? 'date' : 'days'
     const template = `${fn}({
     minutes: ${c.yellow`\${minutes}`},
@@ -154,14 +148,12 @@ const itemInfo = function ({ hs, date, name, subject, sequence }) {
   }
   let timeUnit
   async function changeTime ({ subject, hs, name, email, date, cname, cemail }, sequence) {
-    const from = date.format(formatDispay)
     if (mode.set) timeUnit = await askTime(itemInfo({ hs, date, name, subject, sequence }), date)
     else if (!timeUnit) timeUnit = await askTime('Duration to add')
     const m = mode.set ? moment(timeUnit) : date.add(timeUnit)
     const newDate = m.format(format)
-    const to = m.format(formatDispay)
     q.push(() => {
-      c.println`${c.yellow`(${hs})`}${c.bold(subject)} ${c.bold.cyan(from)} -> ${c.bold.green(to)} `
+      c.println`running.. ${c.cyan(sequence)}`
       setEnv({ name, email, date: newDate })
       exec`git commit --amend --no-edit --date="${newDate}"`
       exec`git rebase --continue`
@@ -175,4 +167,4 @@ const itemInfo = function ({ hs, date, name, subject, sequence }) {
   try { exec`git rebase -i ${commits[0].hash}` } catch (e) {}
   q.forEach(x => x())
   c.yellow.bold.println`Done!`
-})()
+})().catch(() => {})

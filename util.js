@@ -12,7 +12,7 @@ const escape = function (str, ...exp) {
   }).join('')
 }
 const makeEcho = str => `(${str.split('\n').map(x => escape`echo ${x}`).join(joinChar)})`
-const exec = (...args) => execSync(escape(...args)).toString()
+const exec = (...args) => execSync(escape(...args), { stdio: ['pipe', 'pipe', 'pipe'] }).toString()
 
 const colors = {
   println (str, ...exp) {
