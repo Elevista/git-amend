@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 const moment = require('moment')
 const { MultiSelect, Select, Snippet } = require('enquirer')
-const { exec, makeEcho } = require('./util')
-const c = require('ansi-colors')
+const { exec, makeEcho, colors: c } = require('./util')
 const format = 'ddd MMM DD HH:mm YYYY Z'
 const formatDispay = 'YYYY-MM-DD HH:mm'
 
@@ -19,7 +18,7 @@ const formatDispay = 'YYYY-MM-DD HH:mm'
 
 ;(async function () {
   if (exec`git status -s -uno`.length) {
-    console.log(c.red.bold(`You have uncommitted changes`))
+    c.red.bold.println`You have uncommitted changes`
     return
   }
   try { exec`git rebase --abort -q` } catch (e) {}
@@ -55,7 +54,7 @@ const formatDispay = 'YYYY-MM-DD HH:mm'
     },
     choices: commits.map(({ hash, hs, name, date, subject }) => {
       return {
-        name: `${c.yellow(`(${hs})`)}${c.bold(date.format(formatDispay))}`,
+        name: `${c.yellow`(${hs})`}${c.bold(date.format(formatDispay))}`,
         hint: `${c.green.bold(name)} ${subject}`,
         value: hash
       }
@@ -80,11 +79,11 @@ const formatDispay = 'YYYY-MM-DD HH:mm'
   const fn = individual ? 'moment' : 'moment.duration'
   const days = individual ? 'date' : 'days'
   const template = `${fn}({
-    minutes: ${c.yellow(`\${minutes}`)},
-    hours: ${c.yellow(`\${hours}`)},
-    ${days}: ${c.yellow(`\${${days}}`)},
-    months: ${c.yellow(`\${months}`)},
-    years: ${c.yellow(`\${years}`)}
+    minutes: ${c.yellow`\${minutes}`},
+    hours: ${c.yellow`\${hours}`},
+    ${days}: ${c.yellow`\${${days}}`},
+    months: ${c.yellow`\${months}`},
+    years: ${c.yellow`\${years}`}
   })`
 
   let timeUnit
@@ -114,16 +113,16 @@ const formatDispay = 'YYYY-MM-DD HH:mm'
   const q = []
   for (let i = 0; i < selectedCommits.length; i++) {
     const { subject, hs, name, email, date, cname, cemail } = selectedCommits[i]
-    const sequence = c.cyan(`(${i + 1}/${selectedCommits.length})`)
+    const sequence = c.cyan`(${i + 1}/${selectedCommits.length})`
     const from = date.format(formatDispay)
     if (individual) {
-      timeUnit = await askTime(`${c.yellow(`(${hs})`)}${c.bold(from)} ${c.green.bold(name)} ${subject}${sequence}`, date)
+      timeUnit = await askTime(`${c.yellow`(${hs})`}${c.bold(from)} ${c.green.bold(name)} ${subject}${sequence}`, date)
     } else if (!timeUnit) timeUnit = await askTime('Duration to add')
     const m = individual ? moment(timeUnit) : date.add(timeUnit)
     const newDate = m.format(format)
     const to = m.format(formatDispay)
     q.push(function () {
-      console.log(`${c.yellow(`(${hs})`)}${c.bold(subject)} ${c.bold.cyan(from)} -> ${c.bold.green(to)} `)
+      c.println`${c.yellow`(${hs})`}${c.bold(subject)} ${c.bold.cyan(from)} -> ${c.bold.green(to)} `
       Object.assign(process.env, {
         'GIT_AUTHOR_NAME': name,
         'GIT_AUTHOR_EMAIL': email,
@@ -138,5 +137,5 @@ const formatDispay = 'YYYY-MM-DD HH:mm'
   }
   try { exec`git rebase -i ${commits[0].hash}` } catch (e) {}
   q.forEach(x => x())
-  console.log(c.yellow.bold('Done!'))
+  c.yellow.bold.println`Done!`
 })()
