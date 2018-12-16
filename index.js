@@ -69,13 +69,11 @@ const formatDispay = 'YYYY-MM-DD HH:mm'
   while (commits[0] && (commits[0].rebase === 'pick')) commits.shift()
   const rebaseString = commits.map(({ hs, subject, rebase }) => `${rebase} ${hs} ${subject}`).join('\n')
   process.env['GIT_SEQUENCE_EDITOR'] = makeEcho(rebaseString) + '>'
-  try { exec`git rebase -i ${commits[0].hash}` } catch (e) {}
 
-  const choices = ['Set individually', 'Adjust all']
   const method = await new Select({
     name: 'method',
     message: 'Select moment manipulate method',
-    choices
+    choices: ['Set individually', 'Adjust all']
   }).run()
 
   const individual = method === 'Set individually'
@@ -138,6 +136,7 @@ const formatDispay = 'YYYY-MM-DD HH:mm'
       exec`git rebase --continue`
     })
   }
+  try { exec`git rebase -i ${commits[0].hash}` } catch (e) {}
   q.forEach(x => x())
   console.log(c.yellow.bold('Done!'))
 })()
