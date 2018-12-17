@@ -4,6 +4,7 @@ const { MultiSelect, Select, Snippet, Form } = require('enquirer')
 const { exec, makeEcho, colors: c } = require('./util')
 const format = 'ddd MMM DD HH:mm YYYY Z'
 const formatDispay = 'YYYY-MM-DD HH:mm'
+const [,, limit = '10'] = process.argv
 
 // %H: commit hash
 // %h: abbreviated commit hash
@@ -37,7 +38,7 @@ const itemInfo = function ({ hs, date, name, subject, sequence }) {
   }
   try { exec`git rebase --abort -q` } catch (e) {}
 
-  const stdout = exec`git log --format=${'%H%n%h%n%an%n%ae%n%ad%n%cn%n%ce%n%cd%n%s%n'} -10`
+  const stdout = exec`git log --format=${'%H%n%h%n%an%n%ae%n%ad%n%cn%n%ce%n%cd%n%s%n'} -${limit}`
   const ref = {}
   const commits = stdout.split('\n\n').map((x, idx) => {
     const [hash, hs, name, email, date, cname, cemail, cdate, subject] = x.trim().split('\n')
@@ -61,7 +62,7 @@ const itemInfo = function ({ hs, date, name, subject, sequence }) {
     name: 'value',
     message: 'Select commits to change',
     footer: 'Please select at least one',
-    limit: 10,
+    limit,
     validate (v) { return !!v.length },
     result (names) {
       return Object.values(this.map(names))
