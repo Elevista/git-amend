@@ -1,7 +1,7 @@
 {
   "name": "git-amend",
-  "version": "1.0.0",
-  "description": "Amend git commit",
+  "version": "1.0.1",
+  "description": "Easily edit git commit with CLI prompt",
   "main": "index.js",
   "author": "Elevista",
   "email": "elevista@sunnyholic.com",
@@ -19,7 +19,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://elevista@bitbucket.org/elevista/git-commit-date.git"
+    "url": "git+https://github.com/Elevista/git-amend.git"
   },
-  "homepage": "https://bitbucket.org/elevista/git-commit-date#readme"
+  "homepage": "https://github.com/Elevista/git-amend"
 }
