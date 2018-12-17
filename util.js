@@ -7,7 +7,7 @@ const joinChar = win32 ? '\n' : ';'
 
 const escape = function (str, ...exp) {
   return str.map((x, i) => {
-    let ret = (exp[i] || '').replace(...escapeRegex)
+    let ret = `${exp[i] || ''}`.replace(...escapeRegex)
     return x + ret
   }).join('')
 }

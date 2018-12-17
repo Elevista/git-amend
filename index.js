@@ -4,7 +4,7 @@ const { MultiSelect, Select, Snippet, Form } = require('enquirer')
 const { exec, makeEcho, colors: c } = require('./util')
 const format = 'ddd MMM DD HH:mm YYYY Z'
 const formatDispay = 'YYYY-MM-DD HH:mm'
-const [,, limit = '10'] = process.argv
+const [,, limit = 10] = process.argv
 
 // %H: commit hash
 // %h: abbreviated commit hash
@@ -36,7 +36,7 @@ const itemInfo = function ({ hs, date, name, subject, sequence }) {
     c.red.bold.println`You have uncommitted changes`
     return
   }
-  try { exec`git rebase --abort -q` } catch (e) {}
+  try { exec`git rebase --abort` } catch (e) {}
 
   const stdout = exec`git log --format=${'%H%n%h%n%an%n%ae%n%ad%n%cn%n%ce%n%cd%n%s%n'} -${limit}`
   const ref = {}
@@ -156,7 +156,7 @@ const itemInfo = function ({ hs, date, name, subject, sequence }) {
     q.push(() => {
       c.println`running.. ${c.cyan(sequence)}`
       setEnv({ name, email, date: newDate })
-      exec`git commit --amend --no-edit --date="${newDate}"`
+      exec`git commit --amend --no-edit --date="${newDate}" --author="${name} <${email}>"`
       exec`git rebase --continue`
     })
   }
@@ -168,4 +168,6 @@ const itemInfo = function ({ hs, date, name, subject, sequence }) {
   try { exec`git rebase -i ${commits[0].hash}` } catch (e) {}
   q.forEach(x => x())
   c.yellow.bold.println`Done!`
-})().catch(() => {})
+})().catch(e => {
+  c.red.bold.println(e.toString())
+})
