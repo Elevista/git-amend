@@ -3,7 +3,7 @@ const { execSync } = require('child_process')
 const escapeRegex = win32 ? [/([%()^])/g, '^$1'] : [/(["\\;])/g, '\\$1']
 const c = require('ansi-colors')
 const joinTpl = (str, exp) => str.map((x, i) => x + (exp[i] || '')).join('')
-const joinChar = win32 ? '\n' : ';'
+const joinChar = win32 ? '\n' : ';\n'
 
 const escape = function (str, ...exp) {
   return str.map((x, i) => {
@@ -11,7 +11,8 @@ const escape = function (str, ...exp) {
     return x + ret
   }).join('')
 }
-const makeEcho = str => `(${str.split('\n').map(x => escape`echo ${x}`).join(joinChar)})`
+const oneEcho = win32 ? x => escape`echo ${x}` : x => escape`echo "${x}"`
+const makeEcho = str => `(\n${str.split('\n').map(oneEcho).join(joinChar)}\n)`
 const exec = (...args) => execSync(escape(...args), { stdio: ['pipe', 'pipe', 'pipe'] }).toString()
 
 const colors = {
