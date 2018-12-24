@@ -2,7 +2,7 @@
 const moment = require('moment')
 const { MultiSelect, Select, Snippet, Form } = require('enquirer')
 const { exec, makeEcho, colors: c } = require('./util')
-const format = 'ddd MMM DD HH:mm YYYY Z'
+const format = 'ddd MMM DD HH:mm:ss YYYY Z'
 const formatDispay = 'YYYY-MM-DD HH:mm'
 const [,, limit = 10] = process.argv
 
@@ -117,6 +117,7 @@ const itemDisplay = function ({ hs, date, name, subject, sequence }) {
     const fn = c.bold`moment` + (mode.set ? '' : `.${c.yellow`duration`}`)
     const days = mode.set ? 'date' : 'days'
     const template = `${fn}({
+    seconds: ${c.yellow`\${seconds}`},
     minutes: ${c.yellow`\${minutes}`},
     hours: ${c.yellow`\${hours}`},
     ${days}: ${c.yellow`\${${days}}`},
@@ -124,6 +125,7 @@ const itemDisplay = function ({ hs, date, name, subject, sequence }) {
     years: ${c.yellow`\${years}`}
   })`
     const values = mode.set ? date.toObject() : {
+      seconds: 0,
       minutes: 0,
       hours: 0,
       days: 0,
