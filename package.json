@@ -1,6 +1,6 @@
 {
   "name": "git-amend",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Easily edit git commit with CLI prompt",
   "main": "index.js",
   "author": "Elevista",
@@ -21,5 +21,12 @@
     "type": "git",
     "url": "git+https://github.com/Elevista/git-amend.git"
   },
+  "keywords": [
+    "git",
+    "amend",
+    "rebase",
+    "commit",
+    "cli"
+  ],
   "homepage": "https://github.com/Elevista/git-amend"
 }

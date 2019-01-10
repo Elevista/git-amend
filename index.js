@@ -78,7 +78,7 @@ const itemDisplay = function ({ hs, date, name, subject, sequence }) {
   selectedCommits.reverse()
   selectedCommits.forEach(x => { x.selected = true })
   while (commits[0] && (!commits[0].selected)) commits.shift()
-  const rebaseString = commits.map(({ hs, subject }) => `edit ${hs} ${subject}`).join('\n')
+  const rebaseString = commits.map(({ hs }) => `edit ${hs}`).join('\n')
   process.env['GIT_SEQUENCE_EDITOR'] = makeEcho(rebaseString) + '>'
 
   const mode = {}
@@ -109,7 +109,7 @@ const itemDisplay = function ({ hs, date, name, subject, sequence }) {
       setEnv(Object.assign(to, { date }))
       if (diff.name || diff.email) exec`git commit --amend --no-edit --author="${to.name} <${to.email}>"`
       if (diff.subject) exec`git commit --amend --no-edit -m "${to.subject}"`
-      exec`git rebase --continue`
+      exec`git rebase --skip`
     }
   }
   async function askTime (message, date) {
@@ -154,7 +154,7 @@ const itemDisplay = function ({ hs, date, name, subject, sequence }) {
     return () => {
       setEnv({ name, email, date: newDate })
       exec`git commit --amend --no-edit --date="${newDate}" --author="${name} <${email}>"`
-      exec`git rebase --continue`
+      exec`git rebase --skip`
     }
   }
   let seq = 0
@@ -168,7 +168,7 @@ const itemDisplay = function ({ hs, date, name, subject, sequence }) {
       q.push(() => {
         setEnv(commit)
         exec`git commit --amend --no-edit`
-        exec`git rebase --continue`
+        exec`git rebase --skip`
       })
     }
   }
