@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 const moment = require('moment')
 const { MultiSelect, Select, Snippet, Form } = require('enquirer')
-const { exec, makeEcho, colors: c } = require('./util')
+const { exec, execStdin, makeEcho, colors: c } = require('./util')
 const format = 'ddd MMM DD HH:mm:ss YYYY Z'
 const formatDispay = 'YYYY-MM-DD HH:mm'
 const [,, limit = 10] = process.argv
@@ -38,14 +38,15 @@ const itemDisplay = function ({ hs, date, name, subject, sequence }) {
   }
   try { exec`git rebase --abort` } catch (e) {}
 
-  const stdout = exec`git log --format=${'%H%n%h%n%an%n%ae%n%ad%n%cn%n%ce%n%cd%n%s%n'} -${limit}`
+  const stdout = exec`git log --format=${'%H%x00%h%x00%an%x00%ae%x00%ad%x00%cn%x00%ce%x00%cd%x00%s%x00%b%x00%n'} -z -${limit}`
   const ref = {}
-  const commits = stdout.split('\n\n').map((x, idx) => {
-    const [hash, hs, name, email, date, cname, cemail, cdate, subject] = x.trim().split('\n')
-    return {
+  const commits = stdout.split('\x00\n\x00').map((log, idx) => {
+    const [hash, hs, name, email, date, cname, cemail, cdate, subject, body] = log.trim().split('\x00')
+    return hash ? {
       hash,
       hs,
       subject,
+      body,
       name,
       email,
       date: moment(date, format),
@@ -54,8 +55,8 @@ const itemDisplay = function ({ hs, date, name, subject, sequence }) {
       cdate: moment(cdate, format),
       idx,
       selected: false
-    }
-  }).filter(x => x.hash)
+    } : undefined
+  }).filter(x => x)
   commits.forEach(x => { ref[x.hash] = x })
 
   const selectedCommits = (await new MultiSelect({
@@ -97,22 +98,27 @@ const itemDisplay = function ({ hs, date, name, subject, sequence }) {
   }).run()
   mode[modeName] = true
 
-  async function editInfo ({ subject, hs, name, email, date, cname, cemail, cdate }, sequence) {
+  async function editInfo ({ subject, hs, name, email, date, cname, cemail, cdate, body }, sequence) {
     const message = itemDisplay({ hs, date, name, subject, sequence })
+    body = body.replace(/\n/gm, '\\n')
     const to = await new Form({
       name: 'commit',
       message,
       choices: [
         { name: 'name', message: 'Name', initial: name },
         { name: 'email', message: 'Email', initial: email },
-        { name: 'subject', message: 'Message', initial: subject }
+        { name: 'subject', message: 'Subject', initial: subject },
+        { name: 'body', message: 'Body', initial: body }
       ]
     }).run()
-    const diff = { name: name !== to.name, email: email !== to.email, subject: subject !== to.subject }
+    const diff = { name: name !== to.name, email: email !== to.email, message: subject !== to.subject || body !== to.body }
+    to.body = to.body.replace(/\\n/g, '\n')
     return () => {
       setEnv(Object.assign(to, { date }))
       if (diff.name || diff.email) exec`git commit --amend --no-edit --author="${to.name} <${to.email}>"`
-      if (diff.subject) exec`git commit --amend --no-edit -m "${to.subject}"`
+      if (diff.message) {
+        execStdin(`git commit --amend --no-verify --no-edit --file=-`, `${to.subject}${to.body && (`\n\n${to.body}`)}`)
+      }
       exec`git rebase --skip`
     }
   }

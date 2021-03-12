@@ -33,4 +33,12 @@ const define = name => Reflect.defineProperty(colors, name, {
 })
 ;[].concat(...Object.values(c.keys)).forEach(define)
 
-module.exports = { exec, makeEcho, colors }
+const execStdin = (cmd, stdin) => {
+  try {
+    return execSync(cmd, { input: stdin, encoding: 'utf8' })
+  } catch ({ output: [stdout, stderr], fileName, lineNumber }) {
+    throw new Error(stderr)
+  }
+}
+
+module.exports = { exec, execStdin, makeEcho, colors }
