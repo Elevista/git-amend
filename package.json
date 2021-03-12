@@ -12,6 +12,10 @@
   "bin": {
     "git-amend": "./index.js"
   },
+  "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
   "dependencies": {
     "ansi-colors": "^3.2.3",
     "enquirer": "^2.1.1",
