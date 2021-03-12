@@ -77,9 +77,13 @@ const itemDisplay = function ({ hs, date, name, subject, sequence }) {
   commits.reverse()
   selectedCommits.reverse()
   selectedCommits.forEach(x => { x.selected = true })
-  while (commits[0] && (!commits[0].selected)) commits.shift()
-  const rebaseString = commits.map(({ hs }) => `edit ${hs}`).join('\n')
-  process.env['GIT_SEQUENCE_EDITOR'] = makeEcho(rebaseString) + '>'
+  const selectedCommitIdx = commits.findIndex(x => x.selected)
+  if (selectedCommitIdx < 1) throw Error(`Can't rebase`)
+  const rebaseHash = commits[selectedCommitIdx - 1].hash
+  const rebaseCommits = commits.slice(selectedCommitIdx)
+
+  const rebaseString = rebaseCommits.map(({ hs, selected }) => `${selected ? 'edit' : 'pick'} ${hs}`).join('\n')
+  process.env['GIT_SEQUENCE_EDITOR'] = `${makeEcho(rebaseString)}>`
 
   const mode = {}
   const modeName = await new Select({
@@ -153,26 +157,17 @@ const itemDisplay = function ({ hs, date, name, subject, sequence }) {
     const newDate = m.format(format)
     return () => {
       setEnv({ name, email, date: newDate })
-      exec`git commit --amend --no-edit --date="${newDate}" --author="${name} <${email}>"`
+      exec`git commit --amend --no-verify --no-edit --date="${newDate}" --author="${name} <${email}>"`
       exec`git rebase --skip`
     }
   }
   let seq = 0
-  const q = []
-  for (const commit of commits) {
-    if (commit.selected) {
-      const sequence = `(${++seq}/${selectedCommits.length})`
-      q.push(() => c.println`running.. ${c.cyan(sequence)}`)
-      q.push(await (mode.info ? editInfo : changeTime)(commit, sequence))
-    } else {
-      q.push(() => {
-        setEnv(commit)
-        exec`git commit --amend --no-edit`
-        exec`git rebase --skip`
-      })
-    }
+  const q = [() => exec`git rebase -i ${rebaseHash}`]
+  for (const commit of selectedCommits) {
+    const sequence = `(${++seq}/${selectedCommits.length})`
+    q.push(() => c.println`running.. ${c.cyan(sequence)}`)
+    q.push(await (mode.info ? editInfo : changeTime)(commit, sequence))
   }
-  try { exec`git rebase -i ${commits[0].hash}` } catch (e) {}
   q.forEach(x => x())
   c.yellow.bold.println`Done!`
 })().catch(e => {
