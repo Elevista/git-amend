@@ -92,7 +92,8 @@ const itemDisplay = function ({ hs, date, name, subject, sequence }) {
     choices: [
       { name: 'info', message: 'Edit info', hint: `- author,email,message` },
       { name: 'set', message: 'Set date', hint: `- change date individually` },
-      { name: 'adjust', message: 'Adjust date', hint: `- add duration to all selected` }
+      { name: 'adjust', message: 'Adjust date', hint: `- add duration to all selected` },
+      { name: 'stretch', message: 'Stretch Time', hint: '- change date to fit range' }
     ]
   }).run()
   mode[modeName] = true
@@ -166,12 +167,39 @@ const itemDisplay = function ({ hs, date, name, subject, sequence }) {
       exec`git rebase --skip`
     }
   }
-  let seq = 0
-  const q = [() => exec`git rebase -i ${rebaseHash}`]
-  for (const commit of selectedCommits) {
-    const sequence = `(${++seq}/${selectedCommits.length})`
+
+  const stretchTime = (() => {
+    const first = selectedCommits[0].date
+    const last = selectedCommits[selectedCommits.length - 1].date
+    let adjust
+    return async (commit) => {
+      if (!adjust) {
+        const from = moment(await askTime('Stretch from', first))
+        const to = moment(await askTime('Stretch to', last))
+        const diff = (to - from)
+        adjust = date => {
+          const ratio = ((date - first) / (last - first)) || 0
+          return from + (diff * ratio)
+        }
+      }
+      return () => {
+        const { name, email } = commit
+        const date = moment(adjust(commit.date)).format(format)
+        setEnv({ name, email, date })
+        exec`git commit --amend --no-verify --no-edit --date="${date}" --author="${name} <${email}>"`
+        exec`git rebase --skip`
+      }
+    }
+  })()
+
+  const q = [() => exec`git rebase -i ${rebaseTarget.hash}`]
+  for (let i = 0; i < selectedCommits.length; i++) {
+    const commit = selectedCommits[i]
+    const sequence = `(${i + 1}/${selectedCommits.length})`
     q.push(() => c.println`running.. ${c.cyan(sequence)}`)
-    q.push(await (mode.info ? editInfo : changeTime)(commit, sequence))
+    if (mode.stretch) q.push(await stretchTime(commit))
+    else if (mode.info) q.push(await editInfo(commit, sequence))
+    else q.push(await (changeTime)(commit, sequence))
   }
   q.forEach(x => x())
   c.yellow.bold.println`Done!`
