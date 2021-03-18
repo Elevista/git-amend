@@ -4,8 +4,8 @@ const { MultiSelect, Select, Snippet, Form } = require('enquirer')
 const { exec, execStdin, makeEcho, colors: c } = require('./util')
 const format = 'ddd MMM DD HH:mm:ss YYYY Z'
 const formatDispay = 'YYYY-MM-DD HH:mm'
-const [,, limit = 10] = process.argv
-
+let [,, limit] = process.argv
+limit = +limit || 10
 // %H: commit hash
 // %h: abbreviated commit hash
 // %an: author name
@@ -38,7 +38,7 @@ const itemDisplay = function ({ hs, date, name, subject, sequence }) {
   }
   try { exec`git rebase --abort` } catch (e) {}
 
-  const stdout = exec`git log --format=${'%H%x00%h%x00%an%x00%ae%x00%ad%x00%cn%x00%ce%x00%cd%x00%s%x00%b%x00%n'} -z -${limit}`
+  const stdout = exec`git log --format=${'%H%x00%h%x00%an%x00%ae%x00%ad%x00%cn%x00%ce%x00%cd%x00%s%x00%b%x00%n'} -z -${limit + 1}`
   const ref = {}
   const commits = stdout.split('\x00\n\x00').map((log, idx) => {
     const [hash, hs, name, email, date, cname, cemail, cdate, subject, body] = log.trim().split('\x00')
@@ -68,7 +68,7 @@ const itemDisplay = function ({ hs, date, name, subject, sequence }) {
     result (names) {
       return Object.values(this.map(names))
     },
-    choices: commits.map(({ hash, hs, name, date, subject }) => ({
+    choices: commits.slice(0, -1).map(({ hash, hs, name, date, subject }) => ({
       name: `${c.yellow`(${hs})`} ${c.bold(date.format(formatDispay))}`,
       hint: `${c.green.bold(name)} ${subject}`,
       value: hash
@@ -80,8 +80,7 @@ const itemDisplay = function ({ hs, date, name, subject, sequence }) {
   selectedCommits.forEach(x => { x.selected = true })
   const selectedCommitIdx = commits.findIndex(x => x.selected)
   if (selectedCommitIdx < 1) throw Error(`Can't rebase`)
-  const rebaseHash = commits[selectedCommitIdx - 1].hash
-  const rebaseCommits = commits.slice(selectedCommitIdx)
+  const [rebaseTarget, ...rebaseCommits] = commits.slice(selectedCommitIdx - 1)
 
   const rebaseString = rebaseCommits.map(({ hs, selected }) => `${selected ? 'edit' : 'pick'} ${hs}`).join('\n')
   process.env['GIT_SEQUENCE_EDITOR'] = `${makeEcho(rebaseString)}>`
@@ -123,8 +122,8 @@ const itemDisplay = function ({ hs, date, name, subject, sequence }) {
     }
   }
   async function askTime (message, date) {
-    const fn = c.bold`moment` + (mode.set ? '' : `.${c.yellow`duration`}`)
-    const days = mode.set ? 'date' : 'days'
+    const fn = c.bold`moment` + (date ? '' : `.${c.yellow`duration`}`)
+    const days = date ? 'date' : 'days'
     const template = `${fn}({
     seconds: ${c.yellow`\${seconds}`},
     minutes: ${c.yellow`\${minutes}`},
@@ -133,7 +132,7 @@ const itemDisplay = function ({ hs, date, name, subject, sequence }) {
     months: ${c.yellow`\${months}`},
     years: ${c.yellow`\${years}`}
   })`
-    const values = mode.set ? date.toObject() : {
+    const values = date ? date.toObject() : {
       seconds: 0,
       minutes: 0,
       hours: 0,
