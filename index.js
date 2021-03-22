@@ -38,13 +38,17 @@ const itemDisplay = function ({ hs, date, name, subject, sequence }) {
   }
   try { exec`git rebase --abort` } catch (e) {}
 
-  const stdout = exec`git log --format=${'%H%x00%h%x00%an%x00%ae%x00%ad%x00%cn%x00%ce%x00%cd%x00%s%x00%b%x00%n'} -z -${limit + 1}`
+  const stdout = exec`git log --format=${'%H%x00%h%x00%p%x00%an%x00%ae%x00%ad%x00%cn%x00%ce%x00%cd%x00%s%x00%b%x00%n'} -z -${limit + 1}`
   const ref = {}
   const commits = stdout.split('\x00\n\x00').map((log, idx) => {
-    const [hash, hs, name, email, date, cname, cemail, cdate, subject, body] = log.trim().split('\x00')
+    const [hash, hs, p, name, email, date, cname, cemail, cdate, subject, body] = log.trim().split('\x00')
+    const parents = p ? p.split(' ') : []
+    const isMerge = parents.length > 1
     return hash ? {
       hash,
       hs,
+      parents,
+      isMerge,
       subject,
       body,
       name,
@@ -80,7 +84,9 @@ const itemDisplay = function ({ hs, date, name, subject, sequence }) {
   selectedCommits.forEach(x => { x.selected = true })
   const selectedCommitIdx = commits.findIndex(x => x.selected)
   if (selectedCommitIdx < 1) throw Error(`Can't rebase`)
-  const [rebaseTarget, ...rebaseCommits] = commits.slice(selectedCommitIdx - 1)
+  const rebaseIndex = selectedCommitIdx - (commits[selectedCommitIdx].isMerge ? 0 : 1)
+  const rebaseTarget = commits[rebaseIndex]
+  const rebaseCommits = commits.slice(rebaseIndex + 1).filter(x => !x.isMerge)
 
   const rebaseString = rebaseCommits.map(({ hs }) => `edit ${hs}`).join('\n')
   process.env['GIT_SEQUENCE_EDITOR'] = `${makeEcho(rebaseString)}>`
@@ -193,10 +199,11 @@ const itemDisplay = function ({ hs, date, name, subject, sequence }) {
   })()
 
   const q = [() => exec`git rebase -i ${rebaseTarget.hash}`]
+  const { length: selectedCount } = rebaseCommits.filter(x => x.selected)
   for (let i = 0, count = 0; i < rebaseCommits.length; i++) {
     const commit = rebaseCommits[i]
     if (commit.selected) {
-      const sequence = `(${++count}/${selectedCommits.length})`
+      const sequence = `(${++count}/${selectedCount})`
       q.push(() => c.println`running.. ${c.cyan(sequence)}`)
       if (mode.stretch) q.push(await stretchTime(commit))
       else if (mode.info) q.push(await editInfo(commit, sequence))
@@ -209,7 +216,12 @@ const itemDisplay = function ({ hs, date, name, subject, sequence }) {
       })
     }
   }
-  q.forEach(x => x())
+  try {
+    q.forEach(x => x())
+  } catch (e) {
+    exec`git rebase --abort`
+    throw e
+  }
   c.yellow.bold.println`Done!`
 })().catch(e => {
   c.red.bold.println(e.toString())
