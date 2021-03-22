@@ -82,7 +82,7 @@ const itemDisplay = function ({ hs, date, name, subject, sequence }) {
   if (selectedCommitIdx < 1) throw Error(`Can't rebase`)
   const [rebaseTarget, ...rebaseCommits] = commits.slice(selectedCommitIdx - 1)
 
-  const rebaseString = rebaseCommits.map(({ hs, selected }) => `${selected ? 'edit' : 'pick'} ${hs}`).join('\n')
+  const rebaseString = rebaseCommits.map(({ hs }) => `edit ${hs}`).join('\n')
   process.env['GIT_SEQUENCE_EDITOR'] = `${makeEcho(rebaseString)}>`
 
   const mode = {}
@@ -193,13 +193,21 @@ const itemDisplay = function ({ hs, date, name, subject, sequence }) {
   })()
 
   const q = [() => exec`git rebase -i ${rebaseTarget.hash}`]
-  for (let i = 0; i < selectedCommits.length; i++) {
-    const commit = selectedCommits[i]
-    const sequence = `(${i + 1}/${selectedCommits.length})`
-    q.push(() => c.println`running.. ${c.cyan(sequence)}`)
-    if (mode.stretch) q.push(await stretchTime(commit))
-    else if (mode.info) q.push(await editInfo(commit, sequence))
-    else q.push(await (changeTime)(commit, sequence))
+  for (let i = 0, count = 0; i < rebaseCommits.length; i++) {
+    const commit = rebaseCommits[i]
+    if (commit.selected) {
+      const sequence = `(${++count}/${selectedCommits.length})`
+      q.push(() => c.println`running.. ${c.cyan(sequence)}`)
+      if (mode.stretch) q.push(await stretchTime(commit))
+      else if (mode.info) q.push(await editInfo(commit, sequence))
+      else q.push(await (changeTime)(commit, sequence))
+    } else {
+      q.push(() => {
+        setEnv(commit)
+        exec`git commit --amend --no-edit`
+        exec`git rebase --skip`
+      })
+    }
   }
   q.forEach(x => x())
   c.yellow.bold.println`Done!`
