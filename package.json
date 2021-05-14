@@ -1,6 +1,6 @@
 {
   "name": "git-amend",
-  "version": "1.0.4",
+  "version": "1.1.0",
   "description": "Easily edit git commit with CLI prompt",
   "main": "index.js",
   "author": "Elevista",
