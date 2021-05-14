@@ -6,10 +6,9 @@ const joinTpl = (str, exp) => str.map((x, i) => x + (exp[i] || '')).join('')
 const joinChar = win32 ? '\n' : ';\n'
 
 const escape = function (str, ...exp) {
-  return str.map((x, i) => {
-    let ret = `${exp[i] || ''}`.replace(...escapeRegex)
-    return x + ret
-  }).join('')
+  return str.map((x, i) =>
+    x + `${exp[i] || ''}`.replace(...escapeRegex)
+  ).join('')
 }
 const oneEcho = win32 ? x => escape`echo ${x}` : x => escape`echo "${x}"`
 const makeEcho = str => `(\n${str.split('\n').map(oneEcho).join(joinChar)}\n)`
@@ -23,7 +22,7 @@ const colors = {
 }
 const define = name => Reflect.defineProperty(colors, name, {
   get () {
-    let ret = (str, ...exp) => {
+    const ret = (str, ...exp) => {
       if (typeof str === 'string') return ret._color(str)
       else return ret._color(joinTpl(str, exp))
     }
@@ -34,4 +33,12 @@ const define = name => Reflect.defineProperty(colors, name, {
 })
 ;[].concat(...Object.values(c.keys)).forEach(define)
 
-module.exports = { exec, makeEcho, colors }
+const execStdin = (cmd, stdin) => {
+  try {
+    return execSync(cmd, { input: stdin, encoding: 'utf8' })
+  } catch ({ output: [stdout, stderr], fileName, lineNumber }) {
+    throw new Error(stderr)
+  }
+}
+
+module.exports = { exec, execStdin, makeEcho, colors }
